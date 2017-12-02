@@ -24,6 +24,7 @@ recordNames = {'04015', '04043', '04048', '04126', '04746', '04908', ...
 % Loads all the records into a 'records' structure
 for recIndex = 1:length(recordNames)
     recName = char(recordNames(recIndex));
+    disp(recName);
     recPath = strcat('mit-bih\', recName);    
     
     % Actually read everything    
@@ -38,9 +39,57 @@ end
 % Go back to where we were before, if it matters
 cd(prev_folder);
 
-%% Test plot
-testSignal = records.rec04015.signalVolts(103000:110000, 1);
-testTime = records.rec04015.tmSecs(103000:110000);
+%% Test plots
+% testSignal = records.rec04015.signalVolts(103000:110000, 1);
+% testTime = records.rec04015.tmSecs(103000:110000);
+% 
+% % Plot some samples of a record
+% plot(testTime, testSignal);
+% grid on
 
-plot(testTime, testSignal);
-grid on
+%% Perform spectrograms
+learnRecord = records.rec04015;
+testRecord = records.rec04043;
+
+intStart = 103000;
+intEnd = 110000;
+windowSeconds = 5;  % Chunk size in seconds
+overlap = [];  % Samples to overlap, default is 50%
+nfft = [];  % How many FFT points desired per chunk. Leaving empty uses window size
+samplingFreq = learnRecord.Fs;
+[s, f, t, ps] = spectrogram(learnRecord.signalVolts(intStart:intEnd), ...
+                     windowSeconds * learnRecord.Fs, ...
+                     overlap, ...
+                     nfft, ...
+                     samplingFreq, ...
+                     'yaxis');                 
+                 
+psdLearn = 10*log10(abs(ps));
+
+[s, f, t, ps] = spectrogram(testRecord.signalVolts(intStart:intEnd), ...
+                     windowSeconds * testRecord.Fs, ...
+                     overlap, ...
+                     nfft, ...
+                     samplingFreq, ...
+                     'yaxis');                 
+                 
+psdTest = 10*log10(abs(ps));
+                 
+%% Test if PSD matches spectrogram's plot
+% psd2 = zeros(size(ps, 1)+1, size(ps, 2)+1);
+% psd2(1:end-1, 1:end-1) = psdLearn;
+% 
+% tStep = t(1);
+% t2 = 0:tStep:t(end);
+% 
+% fStep = f(2) * 0.5;
+% f2 = 0-fStep:2*fStep:2*fStep*(length(f));
+% 
+% figure;
+% colormap('hot')
+% %https://www.mathworks.com/matlabcentral/answers/122472-how-to-get-the-power-spectral-density-from-a-spectrogram-in-a-given-frequency-range
+% surf(t2, f2, psd2, 'EdgeColor', 'none')
+% colorbar
+% view(2)
+
+%% 
