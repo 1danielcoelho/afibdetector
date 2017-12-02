@@ -1,0 +1,14 @@
+*.atr
+*.hea
+*.dat
+*.hea-
+*.qrs
+*.qrsc
+*.atr-
+mit-bih/*
+other databases/*
+references/*
+WFDB/*
+*.jpg
+*.pdf
+*.docx
