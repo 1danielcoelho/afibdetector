@@ -1,3 +1,5 @@
+%https://www.mathworks.com/matlabcentral/answers/53259-how-to-project-a-new-point-to-pca-new-basis
+
 load hald;
 data = ingredients;
 

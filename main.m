@@ -136,7 +136,15 @@ psds = psds';
 % Get first 10 components
 comps = score(:, 1:10);
 
+%% Perform SVM on the learning dataset
 
+SVMModel = fitcsvm(comps, classes)
+
+classOrder = SVMModel.ClassNames
+
+%% Do some predictions on the learning set itself
+
+SVMModel.predict(comps(1, :))
 
 
 
