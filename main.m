@@ -92,4 +92,71 @@ psdTest = 10*log10(abs(ps));
 % colorbar
 % view(2)
 
-%% 
+%% Separate the signal into windows
+windowSeconds = 10;
+samplingFreq = learnRecord.Fs;
+windowSize = windowSeconds * samplingFreq;
+
+% Cada row uma janela
+numWindows = floor(length(learnRecord.signalVolts(:, 1)) / windowSize);
+
+classes = zeros(numWindows, 1);
+windows = zeros(numWindows, windowSize);
+
+for i=1:numWindows
+    rangeStart = 1 + (i-1)*windowSize;
+    rangeEnd = i*windowSize;    
+    
+    windows(i, :) = learnRecord.signalVolts(rangeStart:rangeEnd, 1);    
+    sampleAnns = learnRecord.annVec(rangeStart:rangeEnd);
+    
+    % If most of the samples are marked as AFIB, mark the window as AFIB
+    classes(i) = sum(sampleAnns) > windowSize/2;
+end
+
+%% Perform PSDs of windows
+
+%https://www.mathworks.com/help/signal/ref/pwelch.html
+[psds, f] = pwelch(windows',[],[],[],250);
+psds = psds';
+
+% figure;
+% plot(f,10*log10(psds(:, 56)));
+% xlim([0, 125]);
+% title('junto');
+% xlabel('Frequency (Hz)')
+% ylabel('Magnitude (dB)')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
