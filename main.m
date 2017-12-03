@@ -93,7 +93,7 @@ psdTest = 10*log10(abs(ps));
 % view(2)
 
 %% Separate the signal into windows
-windowSeconds = 10;
+windowSeconds = 4;
 samplingFreq = learnRecord.Fs;
 windowSize = windowSeconds * samplingFreq;
 
@@ -127,10 +127,14 @@ psds = psds';
 % xlabel('Frequency (Hz)')
 % ylabel('Magnitude (dB)')
 
+%% Perform LDA of psds
+%W = LDA(10*log10(psds), classes);
 
+%% Perform PCA of psds
+[coeff,score,latent,tsquared,explained] = pca(10*log10(psds));
 
-
-
+% Get first 10 components
+comps = score(:, 1:10);
 
 
 
