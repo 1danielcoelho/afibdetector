@@ -9,6 +9,7 @@ mit-bih/*
 other databases/*
 references/*
 WFDB/*
+LDA/*
 *.jpg
 *.pdf
 *.docx
