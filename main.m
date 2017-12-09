@@ -1,5 +1,4 @@
 %%TODO
-% Separate N from other arrhythmia
 % Delay separating training sets from testing sets as much as possible
 % Maybe classify between AFIB and normal within the same series (i.e. use
 % first 3 hours to train, other 7 to test --> Need to screen for records
@@ -73,25 +72,44 @@ windowSizeSeconds = 4;
 recordNames = fieldnames(records);
 for recordName=recordNames'    
     record = records.(recordName{1});
+    disp(recordName{1});
     
     samplingFreq = record.Fs;
     windowSize = windowSizeSeconds * samplingFreq;
-    numWindows = floor(length(record.signalmV(:, 1)) / windowSize);
+        
+    maxNumWindows = floor(length(record.signalmV(:, 1)) / windowSize);
+    numWindows = 1;
 
-    classes = zeros(numWindows, 1);
-    windows = zeros(numWindows, windowSize);
+    % Pre-allocate maximum size for speed
+    classes = zeros(maxNumWindows, 1);
+    windows = zeros(maxNumWindows, windowSize);
 
     % Break record into windows
-    for i=1:numWindows
+    for i=1:maxNumWindows        
         rangeStart = 1 + (i-1)*windowSize;
         rangeEnd = i*windowSize;    
 
-        windows(i, :) = record.signalmV(rangeStart:rangeEnd, 1);    
         sampleAnns = record.annVec(rangeStart:rangeEnd);
-
-        % If most of the samples are marked as AFIB, mark the window as AFIB
-        classes(i) = sum(sampleAnns) > windowSize/2;        
-    end
+        
+        % If there are other arrythmias in this window, discard it and go
+        % to the next window
+        if sum(sampleAnns==2) > 0
+            continue
+        end
+        
+        % If most of the samples are marked as AFIB, mark the window as AFIB        
+        classes(numWindows) = sum(sampleAnns) > windowSize/2;
+        windows(numWindows, :) = record.signalmV(rangeStart:rangeEnd, 1);        
+        
+        numWindows = numWindows + 1;
+    end    
+    
+    % Rewind last iteration just before we left the for loop
+    numWindows = numWindows - 1;
+    
+    % Discard extra lines
+    windows = windows(1:numWindows, :);
+    classes = classes(1:numWindows);
     
     records.(recordName{1}).signalmVWindows = windows;
     records.(recordName{1}).actualClasses = classes;
