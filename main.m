@@ -1,3 +1,10 @@
+%%TODO
+% Separate N from other arrhythmia
+% Delay separating training sets from testing sets as much as possible
+% Maybe classify between AFIB and normal within the same series (i.e. use
+% first 3 hours to train, other 7 to test --> Need to screen for records
+% with many episodes)
+
 %% Cleanup
 clc
 clear all
@@ -23,7 +30,6 @@ recordNames = {'04015', '04043', '04048', '04126', '04746', '04908', ...
                '08219', '08378', '08405', '08434', '08455'};
 
 numRecords = length(recordNames);
-learningSetCount = 0;
            
 % Loads all the records into a 'records' structure
 for recIndex = 1:length(recordNames)
@@ -34,22 +40,31 @@ for recIndex = 1:length(recordNames)
     % Actually read everything    
     [r.signalmV,r.Fs,r.tmSecs]=rdsamp(recPath);
     [r.annSamples,r.anntype,r.subtype,r.chan,r.num,r.comments] = rdann(recPath, 'atr');
-    r.annVec = get_af_annotation_vector(length(r.signalmV), r.annSamples, r.comments);
-    
-    % Mark it as a learning set
-    r.isLearningSet = recIndex < 4;
-    
-    % Count the number of learning sets we have so far
-    if r.isLearningSet
-        learningSetCount = learningSetCount + 1;
-    end
-    
+    r.annVec = get_annotation_vector(length(r.signalmV), r.annSamples, r.comments);
+        
     % Pack everything we read into our records structure
     records.(strcat('rec', recName)) = r;    
 end
 
 % Go back to where we were before, if it matters
 cd(prev_folder);
+
+%% Pick random records to be our training sets
+disp('Marking records as training sets...');
+learningSetCount = 15;
+
+% Randomly pick 'learningSetCount' records to be learning sets
+learningSets = false(numRecords);
+learningSets(1:learningSetCount) = 1;
+learningSets = learningSets(randperm(length(learningSets)));
+
+i = 1;
+recordNames = fieldnames(records);
+for recordName=recordNames'         
+    % Mark it as a learning set
+    records.(recordName{1}).isLearningSet = learningSets(i);    
+    i = i + 1;
+end
 
 %% Break ECG1 signal records into windows
 disp('Separating ECG1 into windows and extracting their classes...');
@@ -75,8 +90,8 @@ for recordName=recordNames'
         sampleAnns = record.annVec(rangeStart:rangeEnd);
 
         % If most of the samples are marked as AFIB, mark the window as AFIB
-        classes(i) = sum(sampleAnns) > windowSize/2;
-    end    
+        classes(i) = sum(sampleAnns) > windowSize/2;        
+    end
     
     records.(recordName{1}).signalmVWindows = windows;
     records.(recordName{1}).actualClasses = classes;
@@ -181,17 +196,47 @@ if numPrincipalComponents ~= 0
 end
 
 %% Build a SVM classifier with the training set
-disp('Traiing SVM model...');
-
-SVMModel = fitcsvm(trainingPSDs, ...
-                   trainingClasses, ...
-                   'KernelFunction', ...
-                   'polynomial', ...
-                   'PolynomialOrder', ...
-                   2);
+% disp('Training SVM model...');
+% 
+% SVMModel = fitcsvm(trainingPSDs, ...
+%                    trainingClasses, ...
+%                    'KernelFunction', ...
+%                    'linear');
 
 %% Predict the classes of each records' windows and stores them in the records
-disp('Testing with the SVM model...');
+% disp('Classifying with SVM model...');
+% 
+% totalConfMat = zeros(2, 2);
+% 
+% recordNames = fieldnames(records);
+% for recordName=recordNames'     
+%     record = records.(recordName{1});
+%     
+%     if ~record.isLearningSet        
+%         % Predict all PSDs of the record at once using our SVM model
+%         [predictedClasses, scoreForEachClass] = predict(SVMModel, record.PSDs);
+%         
+%         actualClasses = record.actualClasses;
+%         
+%         confMat = zeros(2, 2);        
+%         confMat(1, 1) = sum(~predictedClasses & ~actualClasses);
+%         confMat(2, 2) = sum(predictedClasses & actualClasses);
+%         confMat(1, 2) = sum(predictedClasses & ~actualClasses);
+%         confMat(2, 1) = sum(~predictedClasses & actualClasses);        
+%         
+%         totalConfMat = totalConfMat + confMat;
+%         
+%         % Store prediction results into records
+%         records.(recordName{1}).predictedClass = predictedClasses;
+%         records.(recordName{1}).predictionScores = scoreForEachClass; 
+%     end
+% end
+% 
+% totalConfMat
+% totalAccuracy = (totalConfMat(1, 1) + totalConfMat(2, 2)) / sum(sum(totalConfMat))
+
+%% Try a linear classifier instead
+disp('Classifying with a linear classifier...');
 
 totalConfMat = zeros(2, 2);
 
@@ -201,7 +246,10 @@ for recordName=recordNames'
     
     if ~record.isLearningSet        
         % Predict all PSDs of the record at once using our SVM model
-        [predictedClasses, scoreForEachClass] = predict(SVMModel, record.PSDs);
+        predictedClasses = classify(record.PSDs, ...
+                                    trainingPSDs, ...
+                                    trainingClasses, ...
+                                    'linear');
         
         actualClasses = record.actualClasses;
         
@@ -215,15 +263,11 @@ for recordName=recordNames'
         
         % Store prediction results into records
         records.(recordName{1}).predictedClass = predictedClasses;
-        records.(recordName{1}).predictionScores = scoreForEachClass; 
     end
 end
 
 totalConfMat
 totalAccuracy = (totalConfMat(1, 1) + totalConfMat(2, 2)) / sum(sum(totalConfMat))
-
-
-
 
 
 
