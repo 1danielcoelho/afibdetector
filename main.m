@@ -319,86 +319,46 @@ clear trainingClasses testClasses
 clear trainingPSDs testPSDs 
 
 %% Perform PCA of training PSDs
-
-numPrincipalComponents = 0;
-
-% Only perform PCA if we pick numPrincipalComponents different than zero
-if numPrincipalComponents ~= 0
-    disp('Performing PCA from window PSDs...');
-    
-    [coeff,score,latent,tsquared,explained] = pca(trainingPSDs);
-
-    % We'll use this later to convert new observations into PCA components
-    pcaMean = mean(trainingPSDs);
-    pcaCoeffs = inv(coeff');
-
-    % Get first 10 components
-    trainingPSDsPCA = score(:, 1:numPrincipalComponents);
-
-    % Map test records to PCA components
-    recordNames = fieldnames(records);
-    for recordName=recordNames'     
-        record = records.(recordName{1});
-        testPSDs = record.PSDs;        
-        numSamples = size(testPSDs, 1);
-
-        if ~record.isLearningSet       
-            % Actually do the mapping of samples. Check test_pca for proof
-            meanPCAmat = repmat(pcaMean, numSamples, 1);
-            pcaTestPSDs = (testPSDs - meanPCAmat) * pcaCoeffs;
-            pcaTestPSDs = pcaTestPSDs(:, 1:numPrincipalComponents);
-            
-            records.(recordName{1}).PSDs = pcaTestPSDs;
-        end
-    end
-
-    disp('Post-PCA training set dimensions (samples x components): ');
-    size(trainingPSDsPCA)
-    
-    % Overwrite our training PSDs so that the rest of the pipeline never
-    % needs to care if we did PCA or not
-    trainingPSDs = trainingPSDsPCA;
-end
-
-%% Build a SVM classifier with the training set
-% disp('Training SVM model...');
 % 
-% SVMModel = fitcsvm(trainingPSDs, ...
-%                    trainingClasses, ...
-%                    'KernelFunction', ...
-%                    'linear');
-
-%% Predict the classes of each records' windows and stores them in the records
-% disp('Classifying with SVM model...');
+% numPrincipalComponents = 0;
 % 
-% totalConfMat = zeros(2, 2);
-% 
-% recordNames = fieldnames(records);
-% for recordName=recordNames'     
-%     record = records.(recordName{1});
+% % Only perform PCA if we pick numPrincipalComponents different than zero
+% if numPrincipalComponents ~= 0
+%     disp('Performing PCA from window PSDs...');
 %     
-%     if ~record.isLearningSet        
-%         % Predict all PSDs of the record at once using our SVM model
-%         [predictedClasses, scoreForEachClass] = predict(SVMModel, record.PSDs);
-%         
-%         actualClasses = record.actualClasses;
-%         
-%         confMat = zeros(2, 2);        
-%         confMat(1, 1) = sum(~predictedClasses & ~actualClasses);
-%         confMat(2, 2) = sum(predictedClasses & actualClasses);
-%         confMat(1, 2) = sum(predictedClasses & ~actualClasses);
-%         confMat(2, 1) = sum(~predictedClasses & actualClasses);        
-%         
-%         totalConfMat = totalConfMat + confMat;
-%         
-%         % Store prediction results into records
-%         records.(recordName{1}).predictedClass = predictedClasses;
-%         records.(recordName{1}).predictionScores = scoreForEachClass; 
-%     end
-% end
+%     [coeff,score,latent,tsquared,explained] = pca(trainingPSDs);
 % 
-% totalConfMat
-% totalAccuracy = (totalConfMat(1, 1) + totalConfMat(2, 2)) / sum(sum(totalConfMat))
+%     % We'll use this later to convert new observations into PCA components
+%     pcaMean = mean(trainingPSDs);
+%     pcaCoeffs = inv(coeff');
+% 
+%     % Get first 10 components
+%     trainingPSDsPCA = score(:, 1:numPrincipalComponents);
+% 
+%     % Map test records to PCA components
+%     recordNames = fieldnames(records);
+%     for recordName=recordNames'     
+%         record = records.(recordName{1});
+%         testPSDs = record.PSDs;        
+%         numSamples = size(testPSDs, 1);
+% 
+%         if ~record.isLearningSet       
+%             % Actually do the mapping of samples. Check test_pca for proof
+%             meanPCAmat = repmat(pcaMean, numSamples, 1);
+%             pcaTestPSDs = (testPSDs - meanPCAmat) * pcaCoeffs;
+%             pcaTestPSDs = pcaTestPSDs(:, 1:numPrincipalComponents);
+%             
+%             records.(recordName{1}).PSDs = pcaTestPSDs;
+%         end
+%     end
+% 
+%     disp('Post-PCA training set dimensions (samples x components): ');
+%     size(trainingPSDsPCA)
+%     
+%     % Overwrite our training PSDs so that the rest of the pipeline never
+%     % needs to care if we did PCA or not
+%     trainingPSDs = trainingPSDsPCA;
+% end
 
 %% Try a linear classifier instead
 disp('Classifying with a linear classifier...');
@@ -407,28 +367,38 @@ totalConfMat = zeros(2, 2);
 
 recordNames = fieldnames(records);
 for recordName=recordNames'     
-    record = records.(recordName{1});
+    record = records.(recordName{1});    
+      
+%     % Linear classifier
+%     predictedClasses = classify(record.testPSDs, ...
+%                                 record.trainingPSDs, ...
+%                                 record.trainingClasses, ...
+%                                 'linear');
+
+    % SVM Classifier
+    SVMModel = fitcsvm(record.trainingPSDs, ...
+                       record.trainingClasses, ...
+                       'KernelFunction', ...
+                       'polynomial', ...
+                       'PolynomialOrder', ...
+                       2);
+    [predictedClasses, scoreForEachClass] = predict(SVMModel, record.testPSDs);
+                   
+    actualClasses = record.testClasses;
+
+    confMat = zeros(2, 2);        
+    confMat(1, 1) = sum(~predictedClasses & ~actualClasses);
+    confMat(2, 2) = sum(predictedClasses & actualClasses);
+    confMat(1, 2) = sum(predictedClasses & ~actualClasses);
+    confMat(2, 1) = sum(~predictedClasses & actualClasses);        
+
+%     disp(recordName{1});
+%     accuracy = (confMat(1, 1) + confMat(2, 2)) / sum(sum(confMat))
     
-    if ~record.isLearningSet        
-        % Predict all PSDs of the record at once using our SVM model
-        predictedClasses = classify(record.PSDs, ...
-                                    trainingPSDs, ...
-                                    trainingClasses, ...
-                                    'linear');
-        
-        actualClasses = record.actualClasses;
-        
-        confMat = zeros(2, 2);        
-        confMat(1, 1) = sum(~predictedClasses & ~actualClasses);
-        confMat(2, 2) = sum(predictedClasses & actualClasses);
-        confMat(1, 2) = sum(predictedClasses & ~actualClasses);
-        confMat(2, 1) = sum(~predictedClasses & actualClasses);        
-        
-        totalConfMat = totalConfMat + confMat;
-        
-        % Store prediction results into records
-        records.(recordName{1}).predictedClass = predictedClasses;
-    end
+    totalConfMat = totalConfMat + confMat;
+
+    % Store prediction results into records
+    records.(recordName{1}).predictedClass = predictedClasses;
 end
 
 totalConfMat
