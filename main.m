@@ -1,4 +1,6 @@
 %%TODO
+% Separate ECG1 and ECG2 into separate records
+% Extract samples of signals 
 % Delay separating training sets from testing sets as much as possible
 % Maybe classify between AFIB and normal within the same series (i.e. use
 % first 3 hours to train, other 7 to test --> Need to screen for records
@@ -28,7 +30,8 @@ recordNames = {'04015', '04043', '04048', '04126', '04746', '04908', ...
                '06995', '07162', '07859', '07879', '07910', '08215', ...
                '08219', '08378', '08405', '08434', '08455'};
 
-numRecords = length(recordNames);
+% Each file has two leads
+numRecords = length(recordNames) * 2;
            
 % Loads all the records into a 'records' structure
 for recIndex = 1:length(recordNames)
@@ -37,12 +40,16 @@ for recIndex = 1:length(recordNames)
     recPath = strcat('mit-bih\', recName);    
     
     % Actually read everything    
-    [r.signalmV,r.Fs,r.tmSecs]=rdsamp(recPath);
+    [ecg_signal,r.Fs,r.tmSecs]=rdsamp(recPath);
     [r.annSamples,r.anntype,r.subtype,r.chan,r.num,r.comments] = rdann(recPath, 'atr');
-    r.annVec = get_annotation_vector(length(r.signalmV), r.annSamples, r.comments);
+    r.annVec = get_annotation_vector(length(ecg_signal), r.annSamples, r.comments);
         
     % Pack everything we read into our records structure
-    records.(strcat('rec', recName)) = r;    
+    r.signalmV = ecg_signal(:, 1);
+    records.(strcat('rec', recName, '_1')) = r;    
+    
+    r.signalmV = ecg_signal(:, 2);
+    records.(strcat('rec', recName, '_2')) = r;    
 end
 
 % Go back to where we were before, if it matters
@@ -50,7 +57,7 @@ cd(prev_folder);
 
 %% Pick random records to be our training sets
 disp('Marking records as training sets...');
-learningSetCount = 15;
+learningSetCount = 10;
 
 % Randomly pick 'learningSetCount' records to be learning sets
 learningSets = false(numRecords);
@@ -65,9 +72,10 @@ for recordName=recordNames'
     i = i + 1;
 end
 
-%% Break ECG1 signal records into windows
+%% Break record signals into windows
 disp('Separating ECG1 into windows and extracting their classes...');
 windowSizeSeconds = 4;
+discardMixedWindows = 1; %Whether we keep windows that are only partially afib/normal
 
 recordNames = fieldnames(records);
 for recordName=recordNames'    
@@ -94,6 +102,13 @@ for recordName=recordNames'
         % If there are other arrythmias in this window, discard it and go
         % to the next window
         if sum(sampleAnns==2) > 0
+            continue
+        end
+        
+        % If we're asked to discard mixed windows and the number of normal
+        % samples is anything other than 0 or the total number of samples,
+        % skip this window
+        if discardMixedWindows && ((sum(sampleAnns==0) ~= 0) && (sum(sampleAnns==0) ~= length(sampleAnns)))
             continue
         end
         
@@ -134,11 +149,9 @@ for recordName=recordNames'
     %psds+(psds==0) first sets to 1 elements that are zero
     records.(recordName{1}).PSDs = 10*log10(psds+(psds==0));    
     
+    % Check for Infs and NaNs (shouldn't happen anymore)
     nans = sum(isnan(records.(recordName{1}).PSDs));
-    infs = sum(isinf(records.(recordName{1}).PSDs));
-    
-    %min(min(records.(recordName{1}).PSDs))
-    
+    infs = sum(isinf(records.(recordName{1}).PSDs));    
     if nans
         disp(strcat(recordName{1}, ' has NaNs in its PSDs'));
     end
@@ -146,6 +159,79 @@ for recordName=recordNames'
     if infs
         disp(strcat(recordName{1}, ' has Infs in its PSDs'));
     end
+end
+
+%% Discard records that don't have enough windows with normal/afib waveforms
+disp('Discarding records with too few windows of normal or afib... ');
+minNumWindows = 50;
+
+recordNames = fieldnames(records);
+for recordName=recordNames'     
+    record = records.(recordName{1});    
+    
+    normalWindows = sum(record.actualClasses == 0);
+    afibWindows = sum(record.actualClasses == 1);
+    
+    % Print stuff for a table later
+    %disp(strcat(recordName{1}, ',', int2str(normalWindows), ',', int2str(afibWindows)));
+    
+    if normalWindows < minNumWindows || afibWindows < minNumWindows
+        disp(recordName{1});
+        records = rmfield(records, recordName{1});
+    end
+end
+
+%% Get a sample of a normal and afib window from each record, as well as their PSDs
+recordNames = fieldnames(records);
+for recordName=recordNames'     
+    record = records.(recordName{1});    
+    
+    timeAxis = 0:(1.0/record.Fs):windowSizeSeconds - 1/record.Fs;
+    
+    windows = record.signalmVWindows;
+    classes = record.actualClasses;
+    psds = record.PSDs;
+        
+    normalWindowIndices = find(~classes);
+    AFIBWindowIndices = find(classes);
+    
+    firstNormalWindow = windows(normalWindowIndices(1), :);
+    firstAFIBWindow = windows(AFIBWindowIndices(1), :);
+    
+    normalWindowPSD = zeros(1, size(psds, 2));  
+    for i=1:length(normalWindowIndices)
+        normalWindowPSD = normalWindowPSD + psds(normalWindowIndices(i), :);
+    end
+    normalWindowPSD = normalWindowPSD./length(normalWindowIndices);    
+    
+    AFIBWindowPSD = zeros(1, size(psds, 2));  
+    for i=1:length(AFIBWindowIndices)
+        AFIBWindowPSD = AFIBWindowPSD + psds(AFIBWindowIndices(i), :);
+    end
+    AFIBWindowPSD = AFIBWindowPSD./length(AFIBWindowIndices);    
+    
+    figure;
+    suptitle(strcat(recordName{1}));
+    subplot(2, 2, 1);
+    plot(timeAxis, firstNormalWindow);
+    title('First normal window');
+    xlabel('Time (s)');
+    ylabel('Amplitude (mV)');
+    subplot(2, 2, 3);    
+    plot(normalWindowPSD);
+    title('Average of all normal window PSDs');
+    xlabel('Frequency (Hz)');
+    ylabel('Power Spectral Density (dB)');
+    subplot(2, 2, 2);
+    plot(timeAxis, firstAFIBWindow);
+    title('First AFIB window');
+    xlabel('Time (s)');
+    ylabel('Amplitude (mV)');
+    subplot(2, 2, 4);
+    plot(AFIBWindowPSD);
+    title('Average of all AFIB window PSDs');
+    xlabel('Frequency (Hz)');
+    ylabel('Power Spectral Density (dB)');
 end
 
 %% Extract the learning sets from the data to train our SVM
@@ -171,7 +257,7 @@ trainingClasses = trainingClasses(2:end, :);
 disp('Training set dimensions (samples x frequencies): ');
 size(trainingPSDs)
 
-%% Perform PCA of psds
+%% Perform PCA of training PSDs
 
 numPrincipalComponents = 0;
 
