@@ -53,6 +53,8 @@ end
 % Go back to where we were before, if it matters
 cd(prev_folder);
 
+clear ecg_signal
+
 %% Break record signals into windows
 disp('Separating ECG1 into windows and extracting their classes...');
 windowSizeSeconds = 4;
@@ -64,19 +66,19 @@ for recordName=recordNames'
     disp(recordName{1});
     
     samplingFreq = record.Fs;
-    windowSize = windowSizeSeconds * samplingFreq;
+    PSDSize = windowSizeSeconds * samplingFreq;
         
-    maxNumWindows = floor(length(record.signalmV(:, 1)) / windowSize);
-    numWindows = 1;
+    maxNumWindows = floor(length(record.signalmV(:, 1)) / PSDSize);
+    numPSDs = 1;
 
     % Pre-allocate maximum size for speed
-    classes = zeros(maxNumWindows, 1);
-    windows = zeros(maxNumWindows, windowSize);
+    labels = zeros(maxNumWindows, 1);
+    windows = zeros(maxNumWindows, PSDSize);
 
     % Break record into windows
     for i=1:maxNumWindows        
-        rangeStart = 1 + (i-1)*windowSize;
-        rangeEnd = i*windowSize;    
+        rangeStart = 1 + (i-1)*PSDSize;
+        rangeEnd = i*PSDSize;    
 
         sampleAnns = record.annVec(rangeStart:rangeEnd);
         
@@ -94,22 +96,28 @@ for recordName=recordNames'
         end
         
         % If most of the samples are marked as AFIB, mark the window as AFIB        
-        classes(numWindows) = sum(sampleAnns) > windowSize/2;
-        windows(numWindows, :) = record.signalmV(rangeStart:rangeEnd, 1);        
+        labels(numPSDs) = sum(sampleAnns) > PSDSize/2;
+        windows(numPSDs, :) = record.signalmV(rangeStart:rangeEnd, 1);        
         
-        numWindows = numWindows + 1;
+        numPSDs = numPSDs + 1;
     end    
     
     % Rewind last iteration just before we left the for loop
-    numWindows = numWindows - 1;
+    numPSDs = numPSDs - 1;
     
     % Discard extra lines
-    windows = windows(1:numWindows, :);
-    classes = classes(1:numWindows);
+    windows = windows(1:numPSDs, :);
+    labels = labels(1:numPSDs);
     
     records.(recordName{1}).signalmVWindows = windows;
-    records.(recordName{1}).actualClasses = classes;
+    records.(recordName{1}).actualClasses = labels;
+    
+    % Delete variables we won't use anymore
+    records.(recordName{1}) = rmfield(records.(recordName{1}), 'signalmV');
+    records.(recordName{1}) = rmfield(records.(recordName{1}), 'annVec');
 end
+
+clear windows
 
 %% Get Welch PSD estimator from the windows and store them back into records
 disp('Getting Welch PSD estimator from ECG1 windows...');
@@ -175,11 +183,11 @@ for recordName=recordNames'
     timeAxis = 0:(1.0/record.Fs):windowSizeSeconds - 1/record.Fs;
     
     windows = record.signalmVWindows;
-    classes = record.actualClasses;
+    labels = record.actualClasses;
     psds = record.PSDs;
         
-    normalWindowIndices = find(~classes);
-    AFIBWindowIndices = find(classes);
+    normalWindowIndices = find(~labels);
+    AFIBWindowIndices = find(labels);
     
     % Get a normal and an AFIB window to plot as examples
     firstNormalWindow = windows(normalWindowIndices(1), :);
@@ -233,28 +241,82 @@ xlabel('Frequency (Hz)');
 ylabel('Power Spectral Density (dB)');    
 legend('Normal', 'AFIB');
 
-%% Extract the learning sets from the data to train our classifier
-disp('Separating learning set...');
+clear timeAxis
+clear normalWindowIndices AFIBWindowIndices
+clear psds windows labels
+clear normalWindowPSD AFIBWindowPSD
+clear firstNormalWindow firstAFIBWindow
 
-trainingPSDs = zeros(1, numberFrequencyBands);
-trainingClasses = zeros(1, 1);
+%% Delete signal and time, since we won't use them anymore
+recordNames = fieldnames(records);
+for recordName=recordNames'    
+    records.(recordName{1}) = rmfield(records.(recordName{1}), 'signalmVWindows');
+    records.(recordName{1}) = rmfield(records.(recordName{1}), 'tmSecs');
+end
+
+%% Extract training windows from the data
+disp('Separating training windows...');
+
+% We will use this percentage of the psds as a training set
+trainingPercentage = 0.3;
 
 recordNames = fieldnames(records);
 for recordName=recordNames'     
     record = records.(recordName{1});
     
-    if record.isLearningSet
-        % Stack all training PSDs on the same matrix
-        trainingPSDs = [trainingPSDs; record.PSDs];
-        trainingClasses = [trainingClasses; record.actualClasses];        
-    end
+    labels = logical(record.actualClasses);
+    numPSDs = size(labels, 1);
+    PSDSize = size(record.PSDs, 2);    
+    
+    % Determine how many normal/AFIB training/test windows we'll need
+    numNormalPSDs = sum(labels==0);
+    numTrainingNormalPSDs = min(max(round(trainingPercentage * numNormalPSDs), 1), numNormalPSDs-1);
+    numTestNormalPSDs = numNormalPSDs - numTrainingNormalPSDs;        
+    numAFIBPSDs = sum(labels==1);            
+    numTrainingAFIBPSDs = min(max(round(trainingPercentage * numAFIBPSDs), 1), numAFIBPSDs-1);
+    numTestAFIBPSDs = numAFIBPSDs - numTrainingAFIBPSDs;
+    
+    % Separate all normal windows from AFIB windows
+    normalPSDs = record.PSDs(~labels, :);
+    AFIBPSDs = record.PSDs(labels, :);    
+    
+    % Shuffle normal and AFIB PSDs so we pick random samples to be training
+    % sets and testing sets    
+    normalPSDs = normalPSDs(randperm(numNormalPSDs), :);
+    AFIBPSDs = AFIBPSDs(randperm(numAFIBPSDs), :);
+    
+    % Get the four groups of PSDs 
+    trainingNormalPSDs = normalPSDs(1:numTrainingNormalPSDs, :);
+    testNormalPSDs = normalPSDs(numTrainingNormalPSDs+1:end, :);    
+    trainingAFIBPSDs = AFIBPSDs(1:numTrainingAFIBPSDs, :);    
+    testAFIBPSDs = AFIBPSDs(numTrainingAFIBPSDs+1:end, :);
+    
+    % Combine them into training and testing sets
+    trainingPSDs = [trainingNormalPSDs; trainingAFIBPSDs];
+    testPSDs = [testNormalPSDs; testAFIBPSDs];
+    
+    % Create training and test class labels
+    trainingClasses = true(numTrainingNormalPSDs + numTrainingAFIBPSDs, 1);
+    trainingClasses(1:numTrainingNormalPSDs) = 0;    
+    testClasses = true(numTestNormalPSDs + numTestAFIBPSDs, 1);
+    testClasses(1:numTestNormalPSDs) = 0;
+    
+    % Pack them back into the record
+    records.(recordName{1}).trainingPSDs = trainingPSDs;
+    records.(recordName{1}).testPSDs = testPSDs;
+    records.(recordName{1}).trainingClasses = trainingClasses;
+    records.(recordName{1}).testClasses = testClasses;       
+    
+    % Delete variables we won't use anymore
+    records.(recordName{1}) = rmfield(records.(recordName{1}), 'PSDs');
+    records.(recordName{1}) = rmfield(records.(recordName{1}), 'actualClasses');
 end
 
-trainingPSDs = trainingPSDs(2:end, :);
-trainingClasses = trainingClasses(2:end, :);
-
-disp('Training set dimensions (samples x frequencies): ');
-size(trainingPSDs)
+clear AFIBPSDs normalPSDs
+clear testAFIBPSDs testNormalPSDs
+clear trainingAFIBPSDs trainingNormalPSDs
+clear trainingClasses testClasses
+clear trainingPSDs testPSDs 
 
 %% Perform PCA of training PSDs
 
