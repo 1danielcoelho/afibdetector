@@ -1,6 +1,4 @@
 %%TODO
-% Separate ECG1 and ECG2 into separate records
-% Extract samples of signals 
 % Delay separating training sets from testing sets as much as possible
 % Maybe classify between AFIB and normal within the same series (i.e. use
 % first 3 hours to train, other 7 to test --> Need to screen for records
@@ -54,23 +52,6 @@ end
 
 % Go back to where we were before, if it matters
 cd(prev_folder);
-
-%% Pick random records to be our training sets
-disp('Marking records as training sets...');
-learningSetCount = 10;
-
-% Randomly pick 'learningSetCount' records to be learning sets
-learningSets = false(numRecords);
-learningSets(1:learningSetCount) = 1;
-learningSets = learningSets(randperm(length(learningSets)));
-
-i = 1;
-recordNames = fieldnames(records);
-for recordName=recordNames'         
-    % Mark it as a learning set
-    records.(recordName{1}).isLearningSet = learningSets(i);    
-    i = i + 1;
-end
 
 %% Break record signals into windows
 disp('Separating ECG1 into windows and extracting their classes...');
@@ -163,7 +144,7 @@ end
 
 %% Discard records that don't have enough windows with normal/afib waveforms
 disp('Discarding records with too few windows of normal or afib... ');
-minNumWindows = 50;
+minNumWindowsPerRecord = 50;
 
 recordNames = fieldnames(records);
 for recordName=recordNames'     
@@ -175,7 +156,7 @@ for recordName=recordNames'
     % Print stuff for a table later
     %disp(strcat(recordName{1}, ',', int2str(normalWindows), ',', int2str(afibWindows)));
     
-    if normalWindows < minNumWindows || afibWindows < minNumWindows
+    if normalWindows < minNumWindowsPerRecord || afibWindows < minNumWindowsPerRecord
         disp(recordName{1});
         records = rmfield(records, recordName{1});
     end
@@ -183,6 +164,11 @@ end
 
 %% Get a sample of a normal and afib window from each record, as well as their PSDs
 recordNames = fieldnames(records);
+
+normalWindowPSD = zeros(length(recordNames), size(psds, 2));  
+AFIBWindowPSD = zeros(length(recordNames), size(psds, 2));  
+recordIndex = 1;
+
 for recordName=recordNames'     
     record = records.(recordName{1});    
     
@@ -195,46 +181,59 @@ for recordName=recordNames'
     normalWindowIndices = find(~classes);
     AFIBWindowIndices = find(classes);
     
+    % Get a normal and an AFIB window to plot as examples
     firstNormalWindow = windows(normalWindowIndices(1), :);
     firstAFIBWindow = windows(AFIBWindowIndices(1), :);
     
-    normalWindowPSD = zeros(1, size(psds, 2));  
+    % Get mean of all normal window PSDs
     for i=1:length(normalWindowIndices)
-        normalWindowPSD = normalWindowPSD + psds(normalWindowIndices(i), :);
+        normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :) + psds(normalWindowIndices(i), :);
     end
-    normalWindowPSD = normalWindowPSD./length(normalWindowIndices);    
+    normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :)./length(normalWindowIndices);    
     
-    AFIBWindowPSD = zeros(1, size(psds, 2));  
+    % Get mean of all AFIB window PSDs
     for i=1:length(AFIBWindowIndices)
-        AFIBWindowPSD = AFIBWindowPSD + psds(AFIBWindowIndices(i), :);
+        AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :) + psds(AFIBWindowIndices(i), :);
     end
-    AFIBWindowPSD = AFIBWindowPSD./length(AFIBWindowIndices);    
+    AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :)./length(AFIBWindowIndices);    
     
+    % Plot everything
     figure;
     suptitle(strcat(recordName{1}));
+    
     subplot(2, 2, 1);
     plot(timeAxis, firstNormalWindow);
     title('First normal window');
     xlabel('Time (s)');
     ylabel('Amplitude (mV)');
-    subplot(2, 2, 3);    
-    plot(normalWindowPSD);
-    title('Average of all normal window PSDs');
-    xlabel('Frequency (Hz)');
-    ylabel('Power Spectral Density (dB)');
+    
     subplot(2, 2, 2);
     plot(timeAxis, firstAFIBWindow);
     title('First AFIB window');
     xlabel('Time (s)');
-    ylabel('Amplitude (mV)');
-    subplot(2, 2, 4);
-    plot(AFIBWindowPSD);
-    title('Average of all AFIB window PSDs');
+    ylabel('Amplitude (mV)');    
+    
+    subplot(2, 2, 3:4);    
+    plot(normalWindowPSD(recordIndex, :));
+    hold on
+    plot(AFIBWindowPSD(recordIndex, :));    
+    title('Average of window PSDs');
     xlabel('Frequency (Hz)');
-    ylabel('Power Spectral Density (dB)');
+    ylabel('Power Spectral Density (dB)');    
+    legend('Normal', 'AFIB');
 end
 
-%% Extract the learning sets from the data to train our SVM
+% Average all normal PSDs and all AFIB PSDs from all records
+figure;
+suptitle('Mean PSD of all windows from all records');  
+plot(mean(normalWindowPSD));
+hold on
+plot(mean(AFIBWindowPSD));    
+xlabel('Frequency (Hz)');
+ylabel('Power Spectral Density (dB)');    
+legend('Normal', 'AFIB');
+
+%% Extract the learning sets from the data to train our classifier
 disp('Separating learning set...');
 
 trainingPSDs = zeros(1, numberFrequencyBands);
