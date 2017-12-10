@@ -1,6 +1,6 @@
 function [ results ] = classify_af( classifier, trainingPercentage, numRecordsToClassify, numPrincipalComponents )
 %% Import data
-disp('Importing data...');
+%disp('Importing data...');
 
 % Adds the WFDB toolkit folder to path so that we can use rdsamp and rdann
 fullpath = mfilename('fullpath');
@@ -43,7 +43,7 @@ cd(prev_folder);
 clear ecg_signal
 
 %% Break record signals into windows
-disp('Separating signals into windows and extracting their classes...');
+%disp('Separating signals into windows and extracting their classes...');
 windowSizeSeconds = 4;
 discardMixedWindows = 1; %Whether we keep windows that are only partially afib/normal
 
@@ -107,7 +107,7 @@ end
 clear windows
 
 %% Get Welch PSD estimator from the windows and store them back into records
-disp('Getting Welch PSD estimator from signal windows...');
+%disp('Getting Welch PSD estimator from signal windows...');
 
 recordNames = fieldnames(records);
 for recordName=recordNames'     
@@ -138,7 +138,7 @@ for recordName=recordNames'
 end
 
 %% Discard records that don't have enough windows with normal/afib waveforms
-disp('Discarding records with too few windows of normal or afib... ');
+%disp('Discarding records with too few windows of normal or afib... ');
 minNumWindowsPerRecord = 50;
 
 recordNames = fieldnames(records);
@@ -149,7 +149,7 @@ for recordName=recordNames'
     afibWindows = sum(record.actualClasses == 1);
     
     % Print stuff for a table later
-    %disp(strcat(recordName{1}, ',', int2str(normalWindows), ',', int2str(afibWindows)));
+    disp(strcat(recordName{1}, ',', int2str(normalWindows), ',', int2str(afibWindows)));
     
     if normalWindows < minNumWindowsPerRecord || afibWindows < minNumWindowsPerRecord
         %disp(strcat('discarded from ', recordName{1}));
@@ -244,7 +244,7 @@ for recordName=recordNames'
 end
 
 %% Extract training windows from the data
-disp('Separating training windows...');
+%disp('Separating training windows...');
 
 recordNames = fieldnames(records);
 for recordName=recordNames'     
@@ -337,8 +337,8 @@ end
 clear coeff score
 clear numTestPSDs meanPCAmat pcaTestPSDs
 
-%% Try a linear classifier instead
-disp('Training and applying classifier...');
+%% Classify all records one by one and store the mean classification results
+%disp('Training and applying classifier to signals one by one...');
 
 % Make sure we don't clip our PSDs if we didn't choose PCA
 if ~performPCA
@@ -366,6 +366,11 @@ for recordName=recordNames'
                                     record.trainingPSDs(:, 1:numPrincipalComponents), ...
                                     record.trainingClasses, ...
                                     'linear');
+    elseif strcmp(classifier, 'quadratic')
+        predictedClasses = classify(record.testPSDs(:, 1:numPrincipalComponents), ...
+                                    record.trainingPSDs(:, 1:numPrincipalComponents), ...
+                                    record.trainingClasses, ...
+                                    'quadratic');
     elseif strcmp(classifier, 'svm_linear')
         SVMModel = fitcsvm(record.trainingPSDs(:, 1:numPrincipalComponents), ...
                            record.trainingClasses, ...
@@ -409,25 +414,104 @@ for recordName=recordNames'
     signalIndex = signalIndex + 1;
 end
 
-results = {classifier, toc, trainingPercentage, numRecordsToClassify, size(sensitivities, 1), numPrincipalComponents, mean(sensitivities), mean(specificities), mean(PPVs), std(sensitivities), std(specificities), std(PPVs)};
+meanSensit = mean(sensitivities);
+meanSpeci = mean(specificities);
+meanPPVs = mean(PPVs);
 
+stdSensit = std(sensitivities);
+stdSpeci = std(specificities);
+stdPPVs = std(PPVs);
+
+clear sensitivities specificities PPVs;
+clear confMat signalIndex;
+clear predictedClasses actualClasses record;
+
+%% Classify all records one by one and store the mean classification results
+%disp('Training and applying classifier to signals combined...');
+
+combinedTestPSDs = zeros(1, numPrincipalComponents);
+combinedTrainingPSDs = zeros(1, numPrincipalComponents);
+combinedTestClasses = zeros(1, 1);
+combinedTrainingClasses = zeros(1, 1);
+
+recordNames = fieldnames(records);
+for recordName=recordNames'    
+    combinedTestPSDs = [combinedTestPSDs; records.(recordName{1}).testPSDs(:, 1:numPrincipalComponents)];
+    combinedTrainingPSDs = [combinedTrainingPSDs; records.(recordName{1}).trainingPSDs(:, 1:numPrincipalComponents)];
+    combinedTestClasses = [combinedTestClasses; records.(recordName{1}).testClasses];
+    combinedTrainingClasses = [combinedTrainingClasses; records.(recordName{1}).trainingClasses];
 end
 
+combinedTestPSDs = combinedTestPSDs(2:end, :);
+combinedTrainingPSDs = combinedTrainingPSDs(2:end, :);
+combinedTestClasses = combinedTestClasses(2:end, :);
+combinedTrainingClasses = combinedTrainingClasses(2:end, :);
 
+% numTrainingPSDs = size(combinedTrainingPSDs, 1)
+% numTestPSDs = size(combinedTestPSDs, 1)
 
+if strcmp(classifier, 'linear')
+    predictedClasses = classify(combinedTestPSDs, ...
+                                combinedTrainingPSDs, ...
+                                combinedTrainingClasses, ...
+                                'linear');
+elseif strcmp(classifier, 'quadratic')
+    predictedClasses = classify(combinedTestPSDs, ...
+                                combinedTrainingPSDs, ...
+                                combinedTrainingClasses, ...
+                                'quadratic');
+elseif strcmp(classifier, 'svm_linear')
+    SVMModel = fitcsvm(combinedTrainingPSDs, ...
+                       combinedTrainingClasses, ...
+                       'KernelFunction', ...
+                       'linear');
+    [predictedClasses, ~] = predict(SVMModel, combinedTestPSDs);
+elseif strcmp(classifier, 'svm_rbf')
+    SVMModel = fitcsvm(combinedTrainingPSDs, ...
+                       combinedTrainingClasses, ...
+                       'KernelFunction', ...
+                       'rbf');
+    [predictedClasses, ~] = predict(SVMModel, combinedTestPSDs);
+elseif strcmp(classifier, 'svm_poly')
+    SVMModel = fitcsvm(combinedTrainingPSDs, ...
+                       combinedTrainingClasses, ...
+                       'KernelFunction', ...
+                       'Polynomial', ...
+                       'PolynomialOrder', ...
+                       '3');
+    [predictedClasses, ~] = predict(SVMModel, combinedTestPSDs);
+elseif strcmp(classifier, 'fitclinear')
+    SVMModel = fitclinear(combinedTrainingPSDs, ...
+                          combinedTrainingClasses);
+    [predictedClasses, ~] = predict(SVMModel, combinedTestPSDs);
+end
 
+confMat = zeros(2, 2);        
+confMat(1, 1) = sum(~predictedClasses & ~combinedTestClasses); %TN
+confMat(2, 2) = sum(predictedClasses & combinedTestClasses); %TP
+confMat(1, 2) = sum(predictedClasses & ~combinedTestClasses); %FP
+confMat(2, 1) = sum(~predictedClasses & combinedTestClasses); %FN    
 
+totalSensitivity = confMat(2, 2) / (confMat(2, 1) + confMat(2, 2));
+totalSpecificity = confMat(1, 1) / (confMat(1, 1) + confMat(1, 2));
+totalPPV = confMat(2, 2) / (confMat(2, 2) + confMat(1, 2)) ;
 
-
-
-
-
-
-
-
-
-
-
+results = {classifier, ...
+           toc, ...
+           trainingPercentage, ...
+           numRecordsToClassify, ...
+           length(recordNames), ...
+           numPrincipalComponents, ...
+           meanSensit, ...
+           meanSpeci, ...
+           meanPPVs, ...
+           stdSensit, ...
+           stdSpeci, ...
+           stdPPVs, ...
+           totalSensitivity, ...
+           totalSpecificity, ...
+           totalPPV};
+end
 
 
 

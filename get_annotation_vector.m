@@ -1,8 +1,4 @@
 function [ annotation_vector ] = get_annotation_vector( max_length, annSamples, annComments )
-%GET_ANNOTATION_VECTOR Returns a single Nx1 double vector containing 1
-%for samples marked as being part of an atrial fibrillation sequence, 0
-%for normal samples, and 2 for samples with another arrythmia waveform
-
     annotation_vector = zeros(max_length, 1);
 
     for i=1:(length(annComments))    
