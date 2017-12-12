@@ -146,7 +146,7 @@ for recordName=recordNames'
     afibWindows = sum(record.actualClasses == 1);
     
     % Print stuff for a table later
-    disp(strcat(recordName{1}, ',', int2str(normalWindows), ',', int2str(afibWindows)));
+    %disp(strcat(recordName{1}, ',', int2str(normalWindows), ',', int2str(afibWindows)));
     
     if normalWindows < minNumWindowsPerRecord || afibWindows < minNumWindowsPerRecord
         %disp(strcat('discarded from ', recordName{1}));
@@ -155,90 +155,90 @@ for recordName=recordNames'
 end
 
 %% Plot a sample of a normal and afib window from each record, as well as their PSDs
-recordNames = fieldnames(records);
-
-normalWindowPSD = zeros(length(recordNames), size(psds, 2));  
-AFIBWindowPSD = zeros(length(recordNames), size(psds, 2));  
-recordIndex = 1;
-
-for recordName=recordNames'     
-    record = records.(recordName{1});    
-    
-    timeAxis = 0:(1.0/record.Fs):windowSizeSeconds - 1/record.Fs;
-    PSDxAxis = record.PSDxAxis;
-        
-    windows = record.signalmVWindows;
-    labels = record.actualClasses;
-    psds = record.PSDs;
-        
-    normalWindowIndices = find(~labels);
-    AFIBWindowIndices = find(labels);
-    
-    % Get a normal and an AFIB window to plot as examples
-    firstNormalWindow = windows(normalWindowIndices(1), :);
-    firstAFIBWindow = windows(AFIBWindowIndices(1), :);
-    
-    % Get mean of all normal window PSDs
-    for i=1:length(normalWindowIndices)
-        normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :) + psds(normalWindowIndices(i), :);
-    end
-    normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :)./length(normalWindowIndices);    
-    
-    % Get mean of all AFIB window PSDs
-    for i=1:length(AFIBWindowIndices)
-        AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :) + psds(AFIBWindowIndices(i), :);
-    end
-    AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :)./length(AFIBWindowIndices);    
-    
-    % Plot everything
-    figure;
-    
-    suptitle(strcat(recordName{1}));
-    set(gcf, 'Units', 'pixels', 'Position', [10, 100, 500, 600]);
-    subplot(2, 2, 1);
-    plot(timeAxis, firstNormalWindow);
-    title('First normal window');
-    xlabel('Time (s)');
-    ylabel('Amplitude (mV)');
-    
-    subplot(2, 2, 2);
-    plot(timeAxis, firstAFIBWindow);
-    title('First AFIB window');
-    xlabel('Time (s)');
-    ylabel('Amplitude (mV)');    
-    
-    subplot(2, 2, 3:4);    
-    plot(PSDxAxis, normalWindowPSD(recordIndex, :));
-    hold on
-    plot(PSDxAxis, AFIBWindowPSD(recordIndex, :));    
-    plot(PSDxAxis, 5 * (AFIBWindowPSD(recordIndex, :) - normalWindowPSD(recordIndex, :)));
-    title('Average of window PSDs');
-    xlabel('Frequency (Hz)');
-    ylabel('Power Spectral Density (dB)');    
-    legend('Normal', 'AFIB', '5 * (AFIB - Normal)');
-    
-    print(recordName{1},'-dpng')
-end
-
-% Average all normal PSDs and all AFIB PSDs from all records
-figure;
-set(gcf, 'Units', 'pixels', 'Position', [10, 100, 500, 600]);
-suptitle('Mean PSD of all windows from all records');  
-plot(PSDxAxis, mean(normalWindowPSD));
-hold on
-plot(PSDxAxis, mean(AFIBWindowPSD));  
-plot(PSDxAxis, 5 * (mean(AFIBWindowPSD) - mean(normalWindowPSD)));
-xlabel('Frequency (Hz)');
-ylabel('Power Spectral Density (dB)');    
-legend('Normal', 'AFIB', '5 * (AFIB - Normal)');
-
-print('total', '-dpng');
-
-clear timeAxis PSDxAxis
-clear normalWindowIndices AFIBWindowIndices
-clear psds windows labels
-clear normalWindowPSD AFIBWindowPSD
-clear firstNormalWindow firstAFIBWindow
+% recordNames = fieldnames(records);
+% 
+% normalWindowPSD = zeros(length(recordNames), size(psds, 2));  
+% AFIBWindowPSD = zeros(length(recordNames), size(psds, 2));  
+% recordIndex = 1;
+% 
+% for recordName=recordNames'     
+%     record = records.(recordName{1});    
+%     
+%     timeAxis = 0:(1.0/record.Fs):windowSizeSeconds - 1/record.Fs;
+%     PSDxAxis = record.PSDxAxis;
+%         
+%     windows = record.signalmVWindows;
+%     labels = record.actualClasses;
+%     psds = record.PSDs;
+%         
+%     normalWindowIndices = find(~labels);
+%     AFIBWindowIndices = find(labels);
+%     
+%     % Get a normal and an AFIB window to plot as examples
+%     firstNormalWindow = windows(normalWindowIndices(1), :);
+%     firstAFIBWindow = windows(AFIBWindowIndices(1), :);
+%     
+%     % Get mean of all normal window PSDs
+%     for i=1:length(normalWindowIndices)
+%         normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :) + psds(normalWindowIndices(i), :);
+%     end
+%     normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :)./length(normalWindowIndices);    
+%     
+%     % Get mean of all AFIB window PSDs
+%     for i=1:length(AFIBWindowIndices)
+%         AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :) + psds(AFIBWindowIndices(i), :);
+%     end
+%     AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :)./length(AFIBWindowIndices);    
+%     
+%     % Plot everything
+%     figure;
+%     
+%     suptitle(strcat(recordName{1}));
+%     set(gcf, 'Units', 'pixels', 'Position', [10, 100, 1000, 600]);
+%     subplot(2, 2, 1);
+%     plot(timeAxis, firstNormalWindow);
+%     title('First normal window');
+%     xlabel('Time (s)');
+%     ylabel('Amplitude (mV)');
+%     
+%     subplot(2, 2, 2);
+%     plot(timeAxis, firstAFIBWindow);
+%     title('First AFIB window');
+%     xlabel('Time (s)');
+%     ylabel('Amplitude (mV)');    
+%     
+%     subplot(2, 2, 3:4);    
+%     plot(PSDxAxis, normalWindowPSD(recordIndex, :));
+%     hold on
+%     plot(PSDxAxis, AFIBWindowPSD(recordIndex, :));    
+%     plot(PSDxAxis, 5 * (AFIBWindowPSD(recordIndex, :) - normalWindowPSD(recordIndex, :)));
+%     title('Average of window PSDs');
+%     xlabel('Frequency (Hz)');
+%     ylabel('Power Spectral Density (dB)');    
+%     legend('Normal', 'AFIB', '5 * (AFIB - Normal)');
+%     
+%     print(recordName{1},'-dpng')
+% end
+% 
+% % Average all normal PSDs and all AFIB PSDs from all records
+% figure;
+% set(gcf, 'Units', 'pixels', 'Position', [10, 100, 1000, 600]);
+% suptitle('Mean PSD of all windows from all records');  
+% plot(PSDxAxis, mean(normalWindowPSD));
+% hold on
+% plot(PSDxAxis, mean(AFIBWindowPSD));  
+% plot(PSDxAxis, 5 * (mean(AFIBWindowPSD) - mean(normalWindowPSD)));
+% xlabel('Frequency (Hz)');
+% ylabel('Power Spectral Density (dB)');    
+% legend('Normal', 'AFIB', '5 * (AFIB - Normal)');
+% 
+% print('total', '-dpng');
+% 
+% clear timeAxis PSDxAxis
+% clear normalWindowIndices AFIBWindowIndices
+% clear psds windows labels
+% clear normalWindowPSD AFIBWindowPSD
+% clear firstNormalWindow firstAFIBWindow
 
 %% Delete signal and time, since we won't use them anymore
 recordNames = fieldnames(records);
@@ -297,6 +297,10 @@ for recordName=recordNames'
     records.(recordName{1}).trainingClasses = trainingClasses;
     records.(recordName{1}).testClasses = testClasses;       
     
+    % Initialize the explained variable here so the script works even
+    % without PCA
+    records.(recordName{1}).explained = zeros(1, size(trainingPSDs, 2));
+    
     % Delete variables we won't use anymore
     records.(recordName{1}) = rmfield(records.(recordName{1}), 'PSDs');
     records.(recordName{1}) = rmfield(records.(recordName{1}), 'actualClasses');
@@ -308,12 +312,40 @@ clear trainingAFIBPSDs trainingNormalPSDs
 clear trainingClasses testClasses
 clear trainingPSDs testPSDs 
 
+%% Combine all records into one total record
+%disp('Combining records...');   
+
+% Take a copy of the first record
+recordNames = fieldnames(records);
+aRecordName = recordNames(1);
+totalRecord = records.(aRecordName{1});
+records.totalRecord = totalRecord;
+
+% Append all PSDs and classes of the other records behind it
+for recordName=recordNames(2:end)'    
+    totalRecord.testPSDs = [totalRecord.testPSDs; records.(recordName{1}).testPSDs];
+    totalRecord.trainingPSDs = [totalRecord.trainingPSDs; records.(recordName{1}).trainingPSDs];
+    totalRecord.trainingClasses = [totalRecord.trainingClasses; records.(recordName{1}).trainingClasses];
+    totalRecord.testClasses = [totalRecord.testClasses; records.(recordName{1}).testClasses];
+end
+
+% Add the total record as 'totalRecord'
+records.totalRecord = totalRecord;
+
+clear totalRecord;
+
 %% Perform PCA of training PSDs
 if numPrincipalComponents == 0
     performPCA = 0;
 else
     performPCA = 1;
 end
+
+% Store the original number of features, since we'll modify the PSDs
+recordNames = fieldnames(records);
+aRecordName = recordNames(1);
+aRecord = records.(aRecordName{1});
+numOriginalFeatures = size(aRecord.testPSDs, 2);
 
 tic; % Start counting time
 
@@ -327,7 +359,8 @@ if performPCA
         
         [coeff,score,~,~,explained] = pca(record.trainingPSDs);
         
-        % Actually do the mapping of samples. Check test_pca for proof
+        % The score matrix has our trainingPSDs transformed already. We
+        % need to manually transform the testPSDs with the coeffs matrix
         numTestPSDs = size(record.testPSDs, 1);
         meanPCAmat = repmat(mean(record.trainingPSDs), numTestPSDs, 1);
         pcaTestPSDs = (record.testPSDs - meanPCAmat) / coeff';
@@ -335,18 +368,11 @@ if performPCA
         % Update our PSDs
         records.(recordName{1}).trainingPSDs = score;
         records.(recordName{1}).testPSDs = pcaTestPSDs;        
-        records.(recordName{1}).explained = explained;                
+        records.(recordName{1}).explained = explained';                
     end
 end
 
-% Get average explained
-totalExplained = zeros(size(explained));
-for recordName=recordNames'     
-    totalExplained = totalExplained + records.(recordName{1}).explained;
-end
-totalExplained = totalExplained / length(recordNames)
-
-clear coeff score explained
+clear coeff score aRecord record
 clear numTestPSDs meanPCAmat pcaTestPSDs
 
 %% Classify all records one by one and store the mean classification results
@@ -365,7 +391,8 @@ signalIndex = 1;
 
 sensitivities = zeros(numSignals, 1);
 specificities = zeros(numSignals, 1);
-PPVs = zeros(numSignals, 1);
+accuracies = zeros(numSignals, 1);
+explainedMat = zeros(numSignals, numOriginalFeatures);
 
 for recordName=recordNames'       
     record = records.(recordName{1});
@@ -417,96 +444,40 @@ for recordName=recordNames'
 
     sensitivity = confMat(2, 2) / (confMat(2, 1) + confMat(2, 2));
     specificity = confMat(1, 1) / (confMat(1, 1) + confMat(1, 2));
-    ppv = confMat(2, 2) / (confMat(2, 2) + confMat(1, 2)) ;
+    accuracy = (confMat(2, 2) + confMat(1, 1)) / sum(sum(confMat));
         
     sensitivities(signalIndex) = sensitivity;
     specificities(signalIndex) = specificity;
-    PPVs(signalIndex) = ppv;
+    accuracies(signalIndex) = accuracy;    
+    explainedMat(signalIndex, :) = record.explained;
     
     signalIndex = signalIndex + 1;
 end
 
-meanSensit = mean(sensitivities);
-meanSpeci = mean(specificities);
-meanPPVs = mean(PPVs);
+meanSensit = mean(sensitivities(1:end-1, :));
+meanSpeci = mean(specificities(1:end-1, :));
+meanAcc = mean(accuracies(1:end-1, :));
+meanExplained = mean(explainedMat(1:end-1, :));
 
-stdSensit = std(sensitivities);
-stdSpeci = std(specificities);
-stdPPVs = std(PPVs);
+stdSensit = std(sensitivities(1:end-1, :));
+stdSpeci = std(specificities(1:end-1, :));
+stdAcc = std(accuracies(1:end-1, :));
+stdExplained = std(explainedMat(1:end-1, :));
 
-clear sensitivities specificities PPVs;
+totalSensitivity = sensitivities(end, :);
+totalSpecificity = specificities(end, :);
+totalAcc = accuracies(end, :);
+totalExplained = explainedMat(end, :);
+
+clear sensitivities specificities accuracies;
 clear confMat signalIndex;
 clear predictedClasses actualClasses record;
 
-%% Classify all records one by one and store the mean classification results
-%disp('Training and applying classifier to signals combined...');
+%% Return results
 
-combinedTestPSDs = zeros(1, numPrincipalComponents);
-combinedTrainingPSDs = zeros(1, numPrincipalComponents);
-combinedTestClasses = zeros(1, 1);
-combinedTrainingClasses = zeros(1, 1);
-
-recordNames = fieldnames(records);
-for recordName=recordNames'    
-    combinedTestPSDs = [combinedTestPSDs; records.(recordName{1}).testPSDs(:, 1:numPrincipalComponents)];
-    combinedTrainingPSDs = [combinedTrainingPSDs; records.(recordName{1}).trainingPSDs(:, 1:numPrincipalComponents)];
-    combinedTestClasses = [combinedTestClasses; records.(recordName{1}).testClasses];
-    combinedTrainingClasses = [combinedTrainingClasses; records.(recordName{1}).trainingClasses];
-end
-
-combinedTestPSDs = combinedTestPSDs(2:end, :);
-combinedTrainingPSDs = combinedTrainingPSDs(2:end, :);
-combinedTestClasses = combinedTestClasses(2:end, :);
-combinedTrainingClasses = combinedTrainingClasses(2:end, :);
-
-% numTrainingPSDs = size(combinedTrainingPSDs, 1)
-% numTestPSDs = size(combinedTestPSDs, 1)
-
-if strcmp(classifier, 'linear')
-    predictedClasses = classify(combinedTestPSDs, ...
-                                combinedTrainingPSDs, ...
-                                combinedTrainingClasses, ...
-                                'linear');
-elseif strcmp(classifier, 'quadratic')
-    predictedClasses = classify(combinedTestPSDs, ...
-                                combinedTrainingPSDs, ...
-                                combinedTrainingClasses, ...
-                                'quadratic');
-elseif strcmp(classifier, 'svm_linear')
-    SVMModel = fitcsvm(combinedTrainingPSDs, ...
-                       combinedTrainingClasses, ...
-                       'KernelFunction', ...
-                       'linear');
-    [predictedClasses, ~] = predict(SVMModel, combinedTestPSDs);
-elseif strcmp(classifier, 'svm_rbf')
-    SVMModel = fitcsvm(combinedTrainingPSDs, ...
-                       combinedTrainingClasses, ...
-                       'KernelFunction', ...
-                       'rbf');
-    [predictedClasses, ~] = predict(SVMModel, combinedTestPSDs);
-elseif strcmp(classifier, 'svm_poly')
-    SVMModel = fitcsvm(combinedTrainingPSDs, ...
-                       combinedTrainingClasses, ...
-                       'KernelFunction', ...
-                       'Polynomial', ...
-                       'PolynomialOrder', ...
-                       '3');
-    [predictedClasses, ~] = predict(SVMModel, combinedTestPSDs);
-elseif strcmp(classifier, 'fitclinear')
-    SVMModel = fitclinear(combinedTrainingPSDs, ...
-                          combinedTrainingClasses);
-    [predictedClasses, ~] = predict(SVMModel, combinedTestPSDs);
-end
-
-confMat = zeros(2, 2);        
-confMat(1, 1) = sum(~predictedClasses & ~combinedTestClasses); %TN
-confMat(2, 2) = sum(predictedClasses & combinedTestClasses); %TP
-confMat(1, 2) = sum(predictedClasses & ~combinedTestClasses); %FP
-confMat(2, 1) = sum(~predictedClasses & combinedTestClasses); %FN    
-
-totalSensitivity = confMat(2, 2) / (confMat(2, 1) + confMat(2, 2));
-totalSpecificity = confMat(1, 1) / (confMat(1, 1) + confMat(1, 2));
-totalPPV = confMat(2, 2) / (confMat(2, 2) + confMat(1, 2)) ;
+meanExplained = meanExplained';
+stdExplained = stdExplained';
+totalExplained = totalExplained';
 
 results = {classifier, ...
            toc, ...
@@ -516,13 +487,13 @@ results = {classifier, ...
            numPrincipalComponents, ...
            meanSensit, ...
            meanSpeci, ...
-           meanPPVs, ...
+           meanAcc, ...
            stdSensit, ...
            stdSpeci, ...
-           stdPPVs, ...
+           stdAcc, ...
            totalSensitivity, ...
            totalSpecificity, ...
-           totalPPV};
+           totalAcc};
 end
 
 
