@@ -4,8 +4,8 @@ clear all
 
 rng default
 
-fs = 1000;
-t = 0:1/fs:5-1/fs;
+fs = 250;
+t = 0:1/fs:4-1/fs;
 x = cos(2*pi*100*t)+randn(size(t));
 
 % According to https://www.mathworks.com/help/signal/ref/pwelch.html

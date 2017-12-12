@@ -115,15 +115,12 @@ for recordName=recordNames'
     
     [psds, f] = pwelch(record.signalmVWindows',[],[],[],250);
     psds = psds';
-    
-    % Keep track of how many frequency bands pwelch returned. This has
-    % been determined to be the same for all datasets
-    numberFrequencyBands = size(psds, 2);
-    
+        
     %Store PSDs with each row being a window, each column being a frequency
     %(that is, a variable)
     %psds+(psds==0) first sets to 1 elements that are zero
     records.(recordName{1}).PSDs = 10*log10(psds+(psds==0));    
+    records.(recordName{1}).PSDxAxis = f;
     
     % Check for Infs and NaNs (shouldn't happen anymore)
     nans = sum(isnan(records.(recordName{1}).PSDs));
@@ -157,84 +154,91 @@ for recordName=recordNames'
     end
 end
 
-%% Get a sample of a normal and afib window from each record, as well as their PSDs
-% recordNames = fieldnames(records);
-% 
-% normalWindowPSD = zeros(length(recordNames), size(psds, 2));  
-% AFIBWindowPSD = zeros(length(recordNames), size(psds, 2));  
-% recordIndex = 1;
-% 
-% for recordName=recordNames'     
-%     record = records.(recordName{1});    
-%     
-%     timeAxis = 0:(1.0/record.Fs):windowSizeSeconds - 1/record.Fs;
-%     
-%     windows = record.signalmVWindows;
-%     labels = record.actualClasses;
-%     psds = record.PSDs;
-%         
-%     normalWindowIndices = find(~labels);
-%     AFIBWindowIndices = find(labels);
-%     
-%     % Get a normal and an AFIB window to plot as examples
-%     firstNormalWindow = windows(normalWindowIndices(1), :);
-%     firstAFIBWindow = windows(AFIBWindowIndices(1), :);
-%     
-%     % Get mean of all normal window PSDs
-%     for i=1:length(normalWindowIndices)
-%         normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :) + psds(normalWindowIndices(i), :);
-%     end
-%     normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :)./length(normalWindowIndices);    
-%     
-%     % Get mean of all AFIB window PSDs
-%     for i=1:length(AFIBWindowIndices)
-%         AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :) + psds(AFIBWindowIndices(i), :);
-%     end
-%     AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :)./length(AFIBWindowIndices);    
-%     
-%     % Plot everything
-%     figure;
-%     suptitle(strcat(recordName{1}));
-%     
-%     subplot(2, 2, 1);
-%     plot(timeAxis, firstNormalWindow);
-%     title('First normal window');
-%     xlabel('Time (s)');
-%     ylabel('Amplitude (mV)');
-%     
-%     subplot(2, 2, 2);
-%     plot(timeAxis, firstAFIBWindow);
-%     title('First AFIB window');
-%     xlabel('Time (s)');
-%     ylabel('Amplitude (mV)');    
-%     
-%     subplot(2, 2, 3:4);    
-%     plot(normalWindowPSD(recordIndex, :));
-%     hold on
-%     plot(AFIBWindowPSD(recordIndex, :));    
-%     plot(5 * (AFIBWindowPSD(recordIndex, :) - normalWindowPSD(recordIndex, :)));
-%     title('Average of window PSDs');
-%     xlabel('Frequency (Hz)');
-%     ylabel('Power Spectral Density (dB)');    
-%     legend('Normal', 'AFIB', '5 * (AFIB - Normal)');
-% end
-% 
-% % Average all normal PSDs and all AFIB PSDs from all records
-% figure;
-% suptitle('Mean PSD of all windows from all records');  
-% plot(mean(normalWindowPSD));
-% hold on
-% plot(mean(AFIBWindowPSD));  
-% plot(5 * (mean(AFIBWindowPSD) - mean(normalWindowPSD)));
-% xlabel('Frequency (Hz)');
-% ylabel('Power Spectral Density (dB)');    
-% legend('Normal', 'AFIB', '5 * (AFIB - Normal)');
-% 
-% clear timeAxis
-% clear normalWindowIndices AFIBWindowIndices
-% clear psds windows labels
-% clear normalWindowPSD AFIBWindowPSD
-% clear firstNormalWindow firstAFIBWindow
+%% Plot a sample of a normal and afib window from each record, as well as their PSDs
+recordNames = fieldnames(records);
+
+normalWindowPSD = zeros(length(recordNames), size(psds, 2));  
+AFIBWindowPSD = zeros(length(recordNames), size(psds, 2));  
+recordIndex = 1;
+
+for recordName=recordNames'     
+    record = records.(recordName{1});    
+    
+    timeAxis = 0:(1.0/record.Fs):windowSizeSeconds - 1/record.Fs;
+    PSDxAxis = record.PSDxAxis;
+        
+    windows = record.signalmVWindows;
+    labels = record.actualClasses;
+    psds = record.PSDs;
+        
+    normalWindowIndices = find(~labels);
+    AFIBWindowIndices = find(labels);
+    
+    % Get a normal and an AFIB window to plot as examples
+    firstNormalWindow = windows(normalWindowIndices(1), :);
+    firstAFIBWindow = windows(AFIBWindowIndices(1), :);
+    
+    % Get mean of all normal window PSDs
+    for i=1:length(normalWindowIndices)
+        normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :) + psds(normalWindowIndices(i), :);
+    end
+    normalWindowPSD(recordIndex, :) = normalWindowPSD(recordIndex, :)./length(normalWindowIndices);    
+    
+    % Get mean of all AFIB window PSDs
+    for i=1:length(AFIBWindowIndices)
+        AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :) + psds(AFIBWindowIndices(i), :);
+    end
+    AFIBWindowPSD(recordIndex, :) = AFIBWindowPSD(recordIndex, :)./length(AFIBWindowIndices);    
+    
+    % Plot everything
+    figure;
+    
+    suptitle(strcat(recordName{1}));
+    set(gcf, 'Units', 'pixels', 'Position', [10, 100, 500, 600]);
+    subplot(2, 2, 1);
+    plot(timeAxis, firstNormalWindow);
+    title('First normal window');
+    xlabel('Time (s)');
+    ylabel('Amplitude (mV)');
+    
+    subplot(2, 2, 2);
+    plot(timeAxis, firstAFIBWindow);
+    title('First AFIB window');
+    xlabel('Time (s)');
+    ylabel('Amplitude (mV)');    
+    
+    subplot(2, 2, 3:4);    
+    plot(PSDxAxis, normalWindowPSD(recordIndex, :));
+    hold on
+    plot(PSDxAxis, AFIBWindowPSD(recordIndex, :));    
+    plot(PSDxAxis, 5 * (AFIBWindowPSD(recordIndex, :) - normalWindowPSD(recordIndex, :)));
+    title('Average of window PSDs');
+    xlabel('Frequency (Hz)');
+    ylabel('Power Spectral Density (dB)');    
+    legend('Normal', 'AFIB', '5 * (AFIB - Normal)');
+    
+    print(recordName{1},'-dpng')
+end
+
+% Average all normal PSDs and all AFIB PSDs from all records
+figure;
+set(gcf, 'Units', 'pixels', 'Position', [10, 100, 500, 600]);
+suptitle('Mean PSD of all windows from all records');  
+plot(PSDxAxis, mean(normalWindowPSD));
+hold on
+plot(PSDxAxis, mean(AFIBWindowPSD));  
+plot(PSDxAxis, 5 * (mean(AFIBWindowPSD) - mean(normalWindowPSD)));
+xlabel('Frequency (Hz)');
+ylabel('Power Spectral Density (dB)');    
+legend('Normal', 'AFIB', '5 * (AFIB - Normal)');
+
+print('total', '-dpng');
+
+clear timeAxis PSDxAxis
+clear normalWindowIndices AFIBWindowIndices
+clear psds windows labels
+clear normalWindowPSD AFIBWindowPSD
+clear firstNormalWindow firstAFIBWindow
 
 %% Delete signal and time, since we won't use them anymore
 recordNames = fieldnames(records);
@@ -321,7 +325,7 @@ if performPCA
     for recordName=recordNames'     
         record = records.(recordName{1});
         
-        [coeff,score,~,~,~] = pca(record.trainingPSDs);
+        [coeff,score,~,~,explained] = pca(record.trainingPSDs);
         
         % Actually do the mapping of samples. Check test_pca for proof
         numTestPSDs = size(record.testPSDs, 1);
@@ -331,10 +335,18 @@ if performPCA
         % Update our PSDs
         records.(recordName{1}).trainingPSDs = score;
         records.(recordName{1}).testPSDs = pcaTestPSDs;        
+        records.(recordName{1}).explained = explained;                
     end
 end
 
-clear coeff score
+% Get average explained
+totalExplained = zeros(size(explained));
+for recordName=recordNames'     
+    totalExplained = totalExplained + records.(recordName{1}).explained;
+end
+totalExplained = totalExplained / length(recordNames)
+
+clear coeff score explained
 clear numTestPSDs meanPCAmat pcaTestPSDs
 
 %% Classify all records one by one and store the mean classification results
